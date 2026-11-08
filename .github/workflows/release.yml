@@ -36,27 +36,13 @@ jobs:
         with:
           ref: ${{ github.event_name == 'push' && github.ref || inputs.tag }}
 
-      # 项目约定：tauri.conf.json 的 version 是单一来源，publish.mjs 会校验另外三处。
-      # 这里再补上 tag，避免「tag v0.1.1 但产物叫 0.1.0」这种对不上的发布。
-      - name: 校验 tag 与四处版本号一致
+      # 版本单一来源：src-tauri/tauri.conf.json。本地与 CI 共用一个校验脚本，
+      # 只依赖 Node 内置模块，所以能放在 pnpm install 之前跑（尽早失败）。
+      - name: 校验版本号与 tag 一致
         shell: bash
         env:
           TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
-        run: |
-          set -euo pipefail
-          case "$TAG" in v*) ;; *) echo "::error::tag 必须以 v 开头：$TAG"; exit 1 ;; esac
-          v="${TAG#v}"
-          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          pkg=$(node -p "require('./package.json').version")
-          root=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          tauri=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
-          echo "tag=$v | tauri.conf=$conf | package.json=$pkg | Cargo.toml=$root | src-tauri/Cargo.toml=$tauri"
-          for got in "$conf" "$pkg" "$root" "$tauri"; do
-            if [ "$got" != "$v" ]; then
-              echo "::error::版本号与 tag 不一致，先同步四处版本再打 tag"
-              exit 1
-            fi
-          done
+        run: node scripts/check-version.mjs "$TAG"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -74,14 +60,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # tauri.conf.json 的 beforeBuildCommand 会自动跑 pnpm build（tsc --noEmit && vite build）
-      - name: 构建前端 + Tauri / NSIS
+      # bundle.active=false：只输出 target/release/novel-reader.exe，不生成 NSIS 安装包
+      - name: 构建前端 + 绿色版 exe
         run: pnpm tauri build
 
-      # 复用现有发布脚本：同步 exe / 安装包到 release/ 并生成 SHA256SUMS.txt
+      # 复用现有发布脚本：同步 exe 到 release/ 并生成 SHA256SUMS.txt
       - name: 同步产物并生成校验和
         run: pnpm release
 
-      - name: 创建草稿 Release 并上传三个产物
+      - name: 创建草稿 Release 并上传两个产物
         shell: bash
         env:
           TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
@@ -90,9 +77,9 @@ jobs:
           v="${TAG#v}"
           gh release create "$TAG" \
             "release/NovelReader.exe" \
-            "release/Novel Reader_${v}_x64-setup.exe" \
             "release/SHA256SUMS.txt" \
             --title "Novel Reader $v" \
+            --notes "免安装绿色版：下载 NovelReader.exe 放到任意目录双击即可，无需安装。首次运行若出现 Windows SmartScreen 提示，点「更多信息 → 仍要运行」，可用 SHA256SUMS.txt 核对文件完整性。卸载只需删除 exe；书架数据在 %APPDATA%\com.novelreader.app\library.db，不会随 exe 删除。" \
             --generate-notes \
             --verify-tag \
             --draft

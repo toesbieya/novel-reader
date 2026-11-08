@@ -35,8 +35,10 @@ Win11 自带 WebView2；Win10 需要 Evergreen Runtime。`cargo` 如果不在 `P
 pnpm dev                              # 前端开发服务器（localhost:1420，浏览器可跑，走 mock）
 cargo build -p novel-reader           # 调试版 exe
 cargo build --release -p novel-reader # 发布版 exe
-pnpm tauri build                      # 安装包（target/release/bundle/nsis/）
+pnpm tauri build                      # 只出绿色版 exe（target/release/novel-reader.exe）
 pnpm release                          # 同步产物到 release/（版本校验 + 占用检测 + SHA256）
+pnpm bump <版本|patch|minor|major>    # 同步四处版本声明 + Cargo.lock（不 commit / 不打 tag）
+pnpm check:version [vX.Y.Z]           # 校验 4 处声明 + Cargo.lock + tag（本地与 CI 共用）
 
 # 引擎侧：压测 / 造数据 / 验收 / 直接操作书架
 cargo build --release -p novel-cli
@@ -95,7 +97,7 @@ crates/novel-core/           纯 Rust 引擎，零 UI 依赖，可独立压测
 crates/novel-cli/src/main.rs  压测与运维工具，含合成语料生成器
 
 src-tauri/src/lib.rs          27 个 Tauri 命令（薄层：拿锁 → 调引擎 → 错误转字符串）
-src-tauri/tauri.conf.json     窗口 1280×820、dragDropEnabled、NSIS 打包配置
+src-tauri/tauri.conf.json     窗口 1280×820、dragDropEnabled、bundle.active=false（不打包）
 
 src/                          前端，纯 TypeScript，无框架
 ├─ app.ts           视图切换（shelf ↔ reader）
@@ -329,23 +331,27 @@ Rust 侧 `thiserror` 定义错误，Tauri 层 `.map_err(|e| e.to_string())` 转�
 ## 10. 发布
 
 ```
-release/NovelReader.exe                          # 绿色版，双击即用
-release/Novel Reader_<version>_x64-setup.exe     # NSIS 安装包
-target/release/novel-reader.exe                  # 未改名的原始产物
-target/release/bundle/nsis/                      # 打包中间产物
+release/NovelReader.exe          # 唯一分发产物，免安装，双击即用
+release/SHA256SUMS.txt           # 绿色版校验和
+target/release/novel-reader.exe  # 未改名的原始产物
 ```
 
-`release/` 在 `.gitignore` 里。`pnpm tauri build` 只写 `target/`，出包后跑 **`pnpm release`**
-（`scripts/publish.mjs`）同步：以 `tauri.conf.json` 的 version 为单一源校验另外三处、
-检测 `NovelReader.exe` 占用后安全替换（不结束用户进程）、生成 `release/SHA256SUMS.txt`。
-Windows 上正在运行的 exe 可以改名但不能覆盖写，脚本靠「改名 → 写新文件」绕过文件锁；
-极端情况会留下 `*.exe.old`，关掉程序后可手动删。
+`bundle.active=false`，**只分发免安装绿色版，不生成 NSIS 安装包**（`target/release/bundle/`
+不再产生）。`release/` 在 `.gitignore` 里。`pnpm tauri build` 只写 `target/`，出包后跑
+**`pnpm release`**（`scripts/publish.mjs`）同步：以 `tauri.conf.json` 的 version 为单一源校验
+另外三处、检测 `NovelReader.exe` 占用后安全替换（不结束用户进程）、生成
+`release/SHA256SUMS.txt`。Windows 上正在运行的 exe 可以改名但不能覆盖写，脚本靠
+「改名 → 写新文件」绕过文件锁；极端情况会留下 `*.exe.old`，关掉程序后可手动删。
+
+绿色版 exe **未做代码签名**：用户首次下载运行会看到 SmartScreen 提示，需在 Release
+说明里写明「更多信息 → 仍要运行」并提供校验和。卸载 = 删 exe，书架数据仍在
+`%APPDATA%\com.novelreader.app\library.db`，需要手动删。
 
 - `app.security.csp` 是显式最小 CSP（本地应用 XSS 面小，但别再退回 `null`）；
   `capabilities/default.json` 只给 `dialog:allow-open`，不给保存 / 写入对话框。
   改这两处后**必须用真实 exe 启动验证**，浏览器 preview 不加载 CSP。
-- `bundle` 的 `publisher / copyright / shortDescription / longDescription / category` 已填，
-  改这些只影响安装包属性。
+- `bundle` 段现在只保留 `active: false` 与 `icon`；`icon.ico` 仍由构建期嵌入 exe，
+  与是否生成安装包无关。
 - **不要为了消掉 `identifier` 以 `.app` 结尾的警告去改它**。数据库落在
   `%APPDATA%\com.novelreader.app\`，改 identifier 等于换了一个应用，现有书架会整个"消失"。
 - 用户数据默认在 `%APPDATA%\com.novelreader.app\`；自定义目录的指针是 `data-dir.txt`。

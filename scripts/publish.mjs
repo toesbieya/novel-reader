@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * 发布脚本：把 `pnpm tauri build` 的产物同步到 release/。
+ * 发布脚本：把 `pnpm tauri build` 产出的绿色版 exe 同步到 release/。
  *
  * 用法：pnpm release（出包后跑；脚本不会自己编译）
  * 做的事：
  *  1. 以 src-tauri/tauri.conf.json 的 version 为单一源，校验另外三处版本号一致；
- *  2. 检查绿色版 exe / NSIS 安装包确实存在；
+ *  2. 检查绿色版 exe 确实存在（项目只分发免安装版，不生成 NSIS 安装包）；
  *  3. 检测 NovelReader.exe 是否正在运行（**不结束用户进程**），尝试「旧文件改名 → 写新文件」的安全替换；
  *  4. 生成 release/SHA256SUMS.txt。
  */
@@ -39,14 +39,11 @@ if (mismatched.length) {
 }
 console.log(`版本一致：${version}`);
 
-// 2. 产物
+// 2. 产物：只有绿色版 exe
 const greenSrc = p("target/release/novel-reader.exe");
-const setupSrc = p(`target/release/bundle/nsis/Novel Reader_${version}_x64-setup.exe`);
-for (const f of [greenSrc, setupSrc]) {
-  if (!fs.existsSync(f)) {
-    console.error(`缺少构建产物：${f}\n请先运行 pnpm tauri build`);
-    process.exit(1);
-  }
+if (!fs.existsSync(greenSrc)) {
+  console.error(`缺少构建产物：${greenSrc}\n请先运行 pnpm tauri build`);
+  process.exit(1);
 }
 
 // 3. 占用检测：只读，不 kill
@@ -70,7 +67,6 @@ if (busy) console.log("检测到 NovelReader.exe 正在运行：只做安全替�
 const release = p("release");
 fs.mkdirSync(release, { recursive: true });
 const greenDest = p("release/NovelReader.exe");
-const setupDest = p(`release/Novel Reader_${version}_x64-setup.exe`);
 
 function copySafe(src, dest) {
   if (!fs.existsSync(dest)) {
@@ -99,7 +95,6 @@ function copySafe(src, dest) {
 
 try {
   console.log(`绿色版：${copySafe(greenSrc, greenDest)}`);
-  console.log(`安装包：${copySafe(setupSrc, setupDest)}`);
 } catch (err) {
   console.error(err.message);
   process.exit(1);
@@ -109,7 +104,7 @@ try {
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 fs.writeFileSync(
   p("release/SHA256SUMS.txt"),
-  [greenDest, setupDest].map((f) => `${sha(f)}  ${path.basename(f)}`).join("\n") + "\n",
+  `${sha(greenDest)}  ${path.basename(greenDest)}\n`,
 );
 console.log("已生成 release/SHA256SUMS.txt");
 

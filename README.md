@@ -66,8 +66,8 @@ pnpm install
 
 pnpm dev              # 只跑前端，浏览器 http://localhost:1420（mock 数据）
 pnpm tauri dev        # 真实 Tauri 窗口
-pnpm tauri build      # 出绿色 exe + NSIS 安装包（产物在 target/release/）
-pnpm release          # 同步产物到 release/ 并生成 SHA256SUMS.txt
+pnpm tauri build      # 只出绿色版 exe（产物在 target/release/）
+pnpm release          # 同步到 release/ 并生成 SHA256SUMS.txt
 ```
 
 引擎侧工具：
@@ -89,6 +89,16 @@ cargo test -p novel-core                          # 引擎单元测试
   搬走这一个文件就能完整恢复；书架顶栏「设置 → 数据目录」可以整体迁移。
 - EPUB 全文搜索会在数据目录下生成 `search-cache/`（纯文本，仅供搜索），随时可删。
 - 完全离线，不发起任何网络请求。
+
+## 分发
+
+只提供免安装的 `NovelReader.exe`：下载后放到任意目录双击即可，无需安装、不写注册表。
+
+- 首次运行可能出现 Windows SmartScreen 的「Windows 已保护你的电脑」提示，点
+  **更多信息 → 仍要运行**。发布页附带的 `SHA256SUMS.txt` 可用于核对文件完整性。
+- 卸载只需删除 exe。书架、进度和偏好保存在 `%APPDATA%\com.novelreader.app\library.db`，
+  不会随 exe 删除，需要清理时手动删。
+- 未做自动更新，升级就是重新下载 exe 覆盖原文件（覆盖前建议先退出程序）。
 
 ## 项目结构
 
