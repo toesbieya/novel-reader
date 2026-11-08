@@ -352,6 +352,14 @@ target/release/novel-reader.exe  # 未改名的原始产物
   改这两处后**必须用真实 exe 启动验证**，浏览器 preview 不加载 CSP。
 - `bundle` 段现在只保留 `active: false` 与 `icon`；`icon.ico` 仍由构建期嵌入 exe，
   与是否生成安装包无关。
+
+**发布说明**：`.github/release-notes.md` 是当前待发版本的说明模板（新增 / 优化 / 修复 / 其它 +
+固定「下载与运行」段）。workflow 用 `gh release create --notes-file` 读它，`--generate-notes`
+再在后面追加 PR 列表与 compare 链接。GitHub 自动说明**只基于合并的 PR 和 label，不看 commit**，
+本项目没有 PR，所以分类内容必须手写；不要指望 `--generate-notes` 生成「新增 / 优化」。
+发版顺序：写说明 → `pnpm bump` → commit → push → 打 tag。草稿生成后还能在网页继续编辑，
+确认无误再 Publish。文件里留着 `TODO_REPLACE_BEFORE_RELEASE` 时 CI 只发警告、不阻断。
+说明取自 **tag 指向的那个 commit**，所以必须和版本号一起提交。
 - **不要为了消掉 `identifier` 以 `.app` 结尾的警告去改它**。数据库落在
   `%APPDATA%\com.novelreader.app\`，改 identifier 等于换了一个应用，现有书架会整个"消失"。
 - 用户数据默认在 `%APPDATA%\com.novelreader.app\`；自定义目录的指针是 `data-dir.txt`。

@@ -77,11 +77,15 @@ jobs:
         run: |
           set -euo pipefail
           v="${TAG#v}"
+          # 说明文件还是模板时只提醒，不阻断：草稿阶段仍可在网页上补写
+          if grep -q "TODO_REPLACE_BEFORE_RELEASE" .github/release-notes.md; then
+            echo "::warning::发布说明仍是模板，Publish 前请在草稿里补写本次变更"
+          fi
           gh release create "$TAG" \
             "release/NovelReader.exe" \
             "release/SHA256SUMS.txt" \
             --title "Novel Reader $v" \
-            --notes "免安装绿色版：下载 NovelReader.exe 放到任意目录双击即可，无需安装。首次运行若出现 Windows SmartScreen 提示，点「更多信息 → 仍要运行」，可用 SHA256SUMS.txt 核对文件完整性。卸载只需删除 exe；书架数据在 %APPDATA%\com.novelreader.app\library.db，不会随 exe 删除。" \
+            --notes-file .github/release-notes.md \
             --generate-notes \
             --verify-tag \
             --draft
