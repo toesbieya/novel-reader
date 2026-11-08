@@ -1,0 +1,19 @@
+[package]
+name = "novel-reader"
+version = "0.1.0"
+edition = "2021"
+description = "本地小说阅读器"
+
+[lib]
+name = "novel_reader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+novel-core = { path = "../crates/novel-core" }

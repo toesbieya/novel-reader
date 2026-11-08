@@ -1,0 +1,9 @@
+[package]
+name = "novel-cli"
+version.workspace = true
+edition.workspace = true
+description = "novel-core 的命令行压测工具"
+
+[dependencies]
+novel-core = { path = "../novel-core" }
+encoding_rs = "0.8"

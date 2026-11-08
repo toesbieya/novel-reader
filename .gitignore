@@ -1,0 +1,46 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+mes-web
+coverage
+*.local
+
+/cypress/videos/
+/cypress/screenshots/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+# Rust / Tauri
+target
+/src-tauri/target
+/gen
+*.pdb
+
+# 本地压测样本，不入库
+/samples
+
+# 打包产物（可双击运行的 exe 副本）
+/release
+
+# Tauri 构建时生成的 ACL schema（不是源码）
+src-tauri/gen

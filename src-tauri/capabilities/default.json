@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口权限：核心能力 + 只开放文件/目录选择器（dialog:allow-open），不给保存/写入对话框；文件正文仍全部经 Rust 命令读取。",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}
