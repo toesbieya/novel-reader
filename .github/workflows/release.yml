@@ -1,0 +1,99 @@
+# 推送 v* 标签 → Windows runner 构建 → 生成「草稿」Release（人工核对后再点 Publish）
+#
+# 两种触发方式：
+#   git tag v0.1.1 && git push origin v0.1.1
+#   或在 Actions 页面手动运行，填一个已经存在于远端的 tag
+#
+# 注意：workflow 文件必须已经存在于 tag 指向的那个 commit 上，否则该 tag 不会触发构建。
+# 草稿是刻意的：发布后（仓库若启用了 immutable releases）资产和 tag 会被锁死，且未签名
+# 的 exe 值得先人工下载跑一遍。确认无误后在 Release 页面点 Publish release。
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "已存在的标签，例如 v0.1.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || inputs.tag }}
+
+      # 项目约定：tauri.conf.json 的 version 是单一来源，publish.mjs 会校验另外三处。
+      # 这里再补上 tag，避免「tag v0.1.1 但产物叫 0.1.0」这种对不上的发布。
+      - name: 校验 tag 与四处版本号一致
+        shell: bash
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in v*) ;; *) echo "::error::tag 必须以 v 开头：$TAG"; exit 1 ;; esac
+          v="${TAG#v}"
+          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          pkg=$(node -p "require('./package.json').version")
+          root=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          tauri=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          echo "tag=$v | tauri.conf=$conf | package.json=$pkg | Cargo.toml=$root | src-tauri/Cargo.toml=$tauri"
+          for got in "$conf" "$pkg" "$root" "$tauri"; do
+            if [ "$got" != "$v" ]; then
+              echo "::error::版本号与 tag 不一致，先同步四处版本再打 tag"
+              exit 1
+            fi
+          done
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: 安装前端依赖
+        run: pnpm install --frozen-lockfile
+
+      # tauri.conf.json 的 beforeBuildCommand 会自动跑 pnpm build（tsc --noEmit && vite build）
+      - name: 构建前端 + Tauri / NSIS
+        run: pnpm tauri build
+
+      # 复用现有发布脚本：同步 exe / 安装包到 release/ 并生成 SHA256SUMS.txt
+      - name: 同步产物并生成校验和
+        run: pnpm release
+
+      - name: 创建草稿 Release 并上传三个产物
+        shell: bash
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          v="${TAG#v}"
+          gh release create "$TAG" \
+            "release/NovelReader.exe" \
+            "release/Novel Reader_${v}_x64-setup.exe" \
+            "release/SHA256SUMS.txt" \
+            --title "Novel Reader $v" \
+            --generate-notes \
+            --verify-tag \
+            --draft
+          echo "草稿已生成：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG"
