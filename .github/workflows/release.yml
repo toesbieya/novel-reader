@@ -32,7 +32,9 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      # 三个 JS action 都用声明 node24 的主版本。v4 系列声明 node20，
+      # runner 已在 2026-09-23 移除 Node 20，会把它们强制跑在 Node 24 上并报弃用警告。
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'push' && github.ref || inputs.tag }}
 
@@ -44,10 +46,10 @@ jobs:
           TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
         run: node scripts/check-version.mjs "$TAG"
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 12.4.2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
